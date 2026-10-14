@@ -4,8 +4,6 @@
 const $ = id => document.getElementById(id);
 const STORAGE_KEY = "notepal_notes_v2";
 const CATEGORIES_KEY = "notepal_categories_v2";
-const LOGO_KEY = "preach_mate_logo_v1";
-const MAX_LOGO_BYTES = 50 * 1024;
 const BACKUP_DB_NAME = "preach_mate_durable_storage_v1";
 const BACKUP_STORE_NAME = "app_backups";
 const BACKUP_RECORD_KEY = "latest";
@@ -104,8 +102,7 @@ async function writeDurableBackup(){
     id:BACKUP_RECORD_KEY,
     savedAt:Date.now(),
     notes:notes,
-    categories:categories,
-    logo:safeStorageGet(LOGO_KEY)
+    categories:categories
   };
   let db;
   try{
@@ -282,131 +279,15 @@ function showToast(msg){
   toastTimer=setTimeout(()=>$("toast").classList.add("hidden"),2400);
 }
 
-/* LOGO STORAGE AND RECOVERY */
-function applySavedLogo(){
-  const data=safeStorageGet(LOGO_KEY);
+/* PERMANENT LOGO APPLICATION */
+function applyPermanentLogo(){
   ["topbarLogo","drawerLogo"].forEach(id=>{
     const img=$(id);
     if(!img)return;
-    if(data){
-      img.src=data;
-      img.classList.remove("hidden");
-    }else{
-      img.removeAttribute("src");
-      img.classList.add("hidden");
-    }
+    img.src="./logo.png";
+    img.classList.remove("hidden");
   });
 }
-function chooseLogo(){
-  const input=$("logoFileInput");
-  if(!input)return;
-  input.value="";
-  input.click();
-}
-function compressLogo(file){
-  if(!file||!file.type.startsWith("image/")){
-    showToast("Please select an image.");
-    return;
-  }
-  const reader=new FileReader();
-  reader.onerror=()=>showToast("Unable to read this image.");
-  reader.onload=()=>{
-    const image=new Image();
-    image.onerror=()=>showToast("Unable to open this image.");
-    image.onload=()=>{
-      const originalWidth=image.naturalWidth;
-      const originalHeight=image.naturalHeight;
-      if(!originalWidth||!originalHeight){
-        showToast("Invalid image.");
-        return;
-      }
-      const canvas=document.createElement("canvas");
-      const ctx=canvas.getContext("2d");
-      if(!ctx){
-        showToast("Unable to process this image.");
-        return;
-      }
-      const sizes=[320,280,240,200,160];
-      const qualities=[0.82,0.70,0.58,0.46,0.34,0.25];
-      let sizeIndex=0,qualityIndex=0,finished=false;
-
-      function tryCompression(){
-        if(finished)return;
-        const maxSide=sizes[sizeIndex];
-        const scale=Math.min(1,maxSide/Math.max(originalWidth,originalHeight));
-        canvas.width=Math.max(1,Math.round(originalWidth*scale));
-        canvas.height=Math.max(1,Math.round(originalHeight*scale));
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-        ctx.drawImage(image,0,0,canvas.width,canvas.height);
-
-        canvas.toBlob(blob=>{
-          if(finished)return;
-          if(!blob){
-            showToast("Unable to compress this image.");
-            return;
-          }
-          if(blob.size<=MAX_LOGO_BYTES){
-            finished=true;
-            const resultReader=new FileReader();
-            resultReader.onerror=()=>showToast("Unable to save the image.");
-            resultReader.onload=()=>{
-              const saved=safeStorageSet(LOGO_KEY,resultReader.result);
-              if(saved){
-                applySavedLogo();
-                scheduleDurableBackup();
-                flushDurableBackup().then(()=>{
-                  showToast("Logo saved on this device!");
-                });
-              }else{
-                showToast("Could not save logo. Device storage may be full.");
-              }
-            };
-            resultReader.readAsDataURL(blob);
-            return;
-          }
-          qualityIndex++;
-          if(qualityIndex>=qualities.length){
-            qualityIndex=0;
-            sizeIndex++;
-          }
-          if(sizeIndex>=sizes.length){
-            finished=true;
-            showToast("Image is too large to compress below 21 KB.");
-            return;
-          }
-          tryCompression();
-        },"image/webp",qualities[qualityIndex]);
-      }
-      tryCompression();
-    };
-    image.src=reader.result;
-  };
-  reader.readAsDataURL(file);
-}
-
-/* FIVE TAPS ON BRANDING TO CHANGE LOGO */
-function setupLogoFiveTap(id){
-  const area=$(id);
-  if(!area)return;
-  let taps=0,timer=null;
-  area.addEventListener("click",()=>{
-    taps++;
-    clearTimeout(timer);
-    if(taps>=5){
-      taps=0;
-      chooseLogo();
-      return;
-    }
-    timer=setTimeout(()=>{taps=0},2200);
-  });
-}
-setupLogoFiveTap("topbarBrand");
-setupLogoFiveTap("drawerBrand");
-
-$("logoFileInput").addEventListener("change",e=>{
-  const file=e.target.files&&e.target.files[0];
-  if(file)compressLogo(file);
-});
 
 function cleanTemporaryMarker(root){
   root.querySelectorAll(".read-word-marker").forEach(s=>s.replaceWith(...s.childNodes));
@@ -509,66 +390,94 @@ function renderDrawerCategories(){
     holder.appendChild(b);
   });
 }
-function attachCategoryDrag(button,surface){
-  const isTabs=surface==="tabs";
-  const container=isTabs?$("categoryTabs"):$("drawerCategories");
-  const selector=isTabs?".category-tab[data-category]":".drawer-category[data-category]";
-  const axis=isTabs?"x":"y";
-  button.addEventListener("pointerdown",e=>{
-    if(e.button!==0&&e.pointerType==="mouse")return;
-    if(button.dataset.category==="All Notes")return;
-    if(!isTabs&&!e.target.closest(".cat-drag-handle"))return;
-    dragInfo={button,container,selector,axis,surface,pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,moved:false};
-    try{button.setPointerCapture(e.pointerId)}catch(err){}
+
+/* SAFE & RELIABLE CATEGORY DRAGGING */
+function attachCategoryDrag(button, surface) {
+  const isTabs = surface === "tabs";
+  const container = isTabs ? $("categoryTabs") : $("drawerCategories");
+  const selector = isTabs ? ".category-tab[data-category]" : ".drawer-category[data-category]";
+  const axis = isTabs ? "x" : "y";
+
+  button.addEventListener("pointerdown", e => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    if (button.dataset.category === "All Notes") return;
+
+    // In the side drawer, only enable dragging when explicitly holding the handle (⠿)
+    if (!isTabs && !e.target.closest(".cat-drag-handle")) return;
+
+    dragInfo = {
+      button,
+      container,
+      selector,
+      axis,
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      moved: false
+    };
   });
-  button.addEventListener("pointermove",e=>{
-    if(!dragInfo||dragInfo.button!==button||dragInfo.pointerId!==e.pointerId)return;
-    const dx=e.clientX-dragInfo.startX,dy=e.clientY-dragInfo.startY;
-    const primary=axis==="x"?dx:dy,secondary=axis==="x"?dy:dx;
-    if(!dragInfo.moved){
-      if(Math.abs(primary)<8)return;
-      if(Math.abs(primary)<Math.abs(secondary))return;
-      dragInfo.moved=true;
+
+  button.addEventListener("pointermove", e => {
+    if (!dragInfo || dragInfo.button !== button || dragInfo.pointerId !== e.pointerId) return;
+
+    const dx = e.clientX - dragInfo.startX;
+    const dy = e.clientY - dragInfo.startY;
+    const distance = axis === "x" ? Math.abs(dx) : Math.abs(dy);
+
+    // Require intentional drag distance before activating drag mode
+    if (!dragInfo.moved) {
+      if (distance < 12) return;
+      dragInfo.moved = true;
       button.classList.add("dragging");
+      try { button.setPointerCapture(e.pointerId); } catch (err) {}
     }
-    if(e.cancelable)e.preventDefault();
-    const underPointer=document.elementFromPoint(e.clientX,e.clientY);
-    const target=underPointer?underPointer.closest(selector):null;
-    if(!target||target===button||target.dataset.category==="All Notes"||target.parentElement!==container)return;
-    container.querySelectorAll(".drag-target").forEach(el=>el.classList.remove("drag-target"));
-    target.classList.add("drag-target");
-    const rect=target.getBoundingClientRect();
-    const before=axis==="x"?e.clientX<rect.left+rect.width/2:e.clientY<rect.top+rect.height/2;
-    if(before){
-      if(button.nextElementSibling!==target)container.insertBefore(button,target);
-    }else if(target.nextElementSibling!==button){
-      container.insertBefore(button,target.nextElementSibling);
+
+    if (e.cancelable) e.preventDefault();
+
+    const underPointer = document.elementFromPoint(e.clientX, e.clientY);
+    const target = underPointer ? underPointer.closest(selector) : null;
+
+    if (!target || target === button || target.dataset.category === "All Notes" || target.parentElement !== container) return;
+
+    const rect = target.getBoundingClientRect();
+    const before = axis === "x" ? e.clientX < rect.left + rect.width / 2 : e.clientY < rect.top + rect.height / 2;
+
+    if (before) {
+      if (button.nextElementSibling !== target) container.insertBefore(button, target);
+    } else if (target.nextElementSibling !== button) {
+      container.insertBefore(button, target.nextElementSibling);
     }
   });
-  const finish=e=>{
-    if(!dragInfo||dragInfo.button!==button||dragInfo.pointerId!==e.pointerId)return;
-    const moved=dragInfo.moved;
-    button.classList.remove("dragging");
-    container.querySelectorAll(".drag-target").forEach(el=>el.classList.remove("drag-target"));
-    if(moved){
-      const reordered=[...container.querySelectorAll(selector)].map(el=>el.dataset.category).filter(cat=>cat&&cat!=="All Notes");
-      const remaining=categories.filter(cat=>cat!=="All Notes"&&!reordered.includes(cat));
-      categories=["All Notes",...reordered,...remaining];
+
+  const finishDrag = e => {
+    if (!dragInfo || dragInfo.button !== button) return;
+
+    if (dragInfo.moved) {
+      button.classList.remove("dragging");
+
+      const reordered = [...container.querySelectorAll(selector)]
+        .map(el => el.dataset.category)
+        .filter(cat => cat && cat !== "All Notes");
+
+      const remaining = categories.filter(cat => cat !== "All Notes" && !reordered.includes(cat));
+      categories = ["All Notes", ...reordered, ...remaining];
+
       persist();
-      suppressCategoryClick=true;
+      suppressCategoryClick = true;
       renderCategories();
       renderNotes();
       showToast("Category order saved");
-      setTimeout(()=>{suppressCategoryClick=false},350);
+
+      setTimeout(() => { suppressCategoryClick = false; }, 300);
     }
-    dragInfo=null;
+
+    dragInfo = null;
   };
-  button.addEventListener("pointerup",finish);
-  button.addEventListener("pointercancel",finish);
-  button.addEventListener("lostpointercapture",e=>{
-    if(dragInfo&&dragInfo.button===button&&dragInfo.pointerId===e.pointerId)finish(e);
-  });
+
+  button.addEventListener("pointerup", finishDrag);
+  button.addEventListener("pointercancel", finishDrag);
 }
+
 
 /* NOTES LIST */
 function renderNotes(){
@@ -933,7 +842,7 @@ function showFavorites(){
 function openDrawer(){$("drawerBackdrop").classList.remove("hidden")}
 function closeDrawer(){$("drawerBackdrop").classList.add("hidden")}
 
-/* EXPORT BACKUP INCLUDING LOGO */
+/* EXPORT BACKUP */
 function exportNotes(){
   try{
     const backup={
@@ -941,8 +850,7 @@ function exportNotes(){
       version:2,
       exportedAt:new Date().toISOString(),
       categories:categories,
-      notes:notes,
-      logo:safeStorageGet(LOGO_KEY)
+      notes:notes
     };
     const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});
     const url=URL.createObjectURL(blob);
@@ -954,7 +862,7 @@ function exportNotes(){
     a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),1500);
     closeDrawer();
-    showToast("Backup exported, including logo!");
+    showToast("Backup exported successfully!");
   }catch(e){
     showToast("Unable to create backup.");
   }
@@ -985,13 +893,11 @@ function restoreNotesFromFile(file){
         This will replace your current notes and categories with the selected backup.
         <br><br>Notes in backup: <b>${data.notes.length}</b>
         <br>Categories in backup: <b>${data.categories.length}</b>
-        <br><br>The logo will also be restored if this backup contains one.
       </p>`,()=>{
         const oldNotes=notes;
         const oldCategories=categories;
         const oldActiveCategory=activeCategory;
         const oldFavoritesOnly=favoritesOnly;
-        const oldLogo=safeStorageGet(LOGO_KEY);
 
         notes=data.notes.map(n=>({...n,favorite:!!n.favorite,pinned:!!n.pinned}));
         categories=["All Notes",...new Set(data.categories.map(c=>c.trim()).filter(c=>c&&c!=="All Notes"))];
@@ -1001,30 +907,18 @@ function restoreNotesFromFile(file){
           }
         });
 
-        if(typeof data.logo==="string"&&data.logo.startsWith("data:image/")){
-          if(!safeStorageSet(LOGO_KEY,data.logo)){
-            notes=oldNotes;
-            categories=oldCategories;
-            safeStorageSet(LOGO_KEY,oldLogo||"");
-            showToast("Could not restore logo. Storage may be full.");
-            return false;
-          }
-        }
-
         if(!persist()){
           notes=oldNotes;
           categories=oldCategories;
           activeCategory=oldActiveCategory;
           favoritesOnly=oldFavoritesOnly;
-          if(oldLogo)safeStorageSet(LOGO_KEY,oldLogo);
-          else try{localStorage.removeItem(LOGO_KEY)}catch(e){}
           return false;
         }
 
         activeCategory="All Notes";
         favoritesOnly=false;
         $("searchInput").value="";
-        applySavedLogo();
+        applyPermanentLogo();
         renderCategories();
         renderNotes();
         closeDrawer();
@@ -1173,10 +1067,8 @@ function schedulePasteTailScroll(){
 noteBody.addEventListener("paste", (e) => {
   e.preventDefault();
   
-  // Extract clean plain text from clipboard
   const plainText = (e.clipboardData || window.clipboardData).getData("text/plain");
   
-  // Safely insert plain text into contenteditable
   if (document.queryCommandSupported("insertText")) {
     document.execCommand("insertText", false, plainText);
   } else {
@@ -1186,7 +1078,6 @@ noteBody.addEventListener("paste", (e) => {
     selection.getRangeAt(0).insertNode(document.createTextNode(plainText));
   }
   
-  // Re-trigger auto-scroll adjustments
   schedulePasteTailScroll();
 });
 
@@ -1410,7 +1301,7 @@ window.addEventListener("beforeunload",()=>{
   if(currentNoteId)saveCurrentNote();
 });
 
-/* CORRECTED STARTUP WITH INDEXEDDB RECOVERY */
+/* STARTUP WITH INDEXEDDB RECOVERY */
 async function startApp(){
   requestPersistentStorage();
 
@@ -1430,10 +1321,6 @@ async function startApp(){
 
   if(!categoriesWereStored&&backup&&Array.isArray(backup.categories)&&backup.categories.length){
     categories=["All Notes",...backup.categories.filter(c=>typeof c==="string"&&c!=="All Notes")];
-  }
-
-  if(!safeStorageGet(LOGO_KEY)&&backup&&typeof backup.logo==="string"&&backup.logo.startsWith("data:image/")){
-    safeStorageSet(LOGO_KEY,backup.logo);
   }
 
   categories=categories.filter(c=>typeof c==="string"&&c.trim()).map(c=>c.trim());
@@ -1456,7 +1343,7 @@ async function startApp(){
 
   renderCategories();
   renderNotes();
-  applySavedLogo();
+  applyPermanentLogo();
   updateInstallButton();
 
   await flushDurableBackup();
@@ -1479,7 +1366,6 @@ if("serviceWorker" in navigator){
   });
 }
 
-/* END OF PREACH MATE APP */
 /* CLOUD SYNC BRIDGE */
 window.PreachMateApp = {
   isReady: false,
@@ -1487,8 +1373,7 @@ window.PreachMateApp = {
   getCloudData() {
     return {
       notes: JSON.parse(JSON.stringify(notes)),
-      categories: JSON.parse(JSON.stringify(categories)),
-      logo: safeStorageGet(LOGO_KEY) || ""
+      categories: JSON.parse(JSON.stringify(categories))
     };
   },
 
@@ -1511,16 +1396,7 @@ window.PreachMateApp = {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
       localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
 
-      // --- CRITICAL FIX FOR LOGO RESTORATION ---
-      if (typeof data.logo === "string") {
-        if (data.logo.startsWith("data:image/")) {
-          safeStorageSet(LOGO_KEY, data.logo);
-        } else if (data.logo === "") {
-          try { localStorage.removeItem(LOGO_KEY); } catch(e){}
-        }
-      }
-
-      applySavedLogo();
+      applyPermanentLogo();
       renderCategories();
       renderNotes();
       flushDurableBackup();
@@ -1553,40 +1429,6 @@ appStartupPromise
     console.error("Preach Mate initialization failed:", error);
   });
 
-  /* EMERGENCY PURGE BUTTON FOR CORRUPTED NOTES */
-window.purgeCorruptedNote = async function() {
-  const user = window.PreachMateFirebase?.getCurrentUser();
-  const db = window.PreachMateFirebase?.getFirestore();
-
-  // 1. Clean local notes
-  let localNotes = JSON.parse(localStorage.getItem("notepal_notes_v2") || "[]");
-  
-  // Identify corrupted notes (contains HTML attributes or unparsed tags)
-  const corruptNotes = localNotes.filter(n => n.content.includes("read-word-marker") || n.content.includes("class=") || n.title === "Untitled note");
-  
-  if (corruptNotes.length === 0) {
-    alert("No corrupted notes found!");
-    return;
-  }
-
-  // 2. Delete corrupted notes from Firebase Cloud
-  if (user && db) {
-    for (const note of corruptNotes) {
-      try {
-        await db.collection("users").doc(user.uid).collection("notes").doc(note.id).delete();
-      } catch (e) {
-        console.error("Failed to delete note from cloud:", e);
-      }
-    }
-  }
-
-  // 3. Save clean list back to LocalStorage
-  const cleanNotes = localNotes.filter(n => !corruptNotes.some(cn => cn.id === n.id));
-  localStorage.setItem("notepal_notes_v2", JSON.stringify(cleanNotes));
-
-  alert(`Successfully purged ${corruptNotes.length} corrupted note(s)! Reloading...`);
-  location.reload();
-};
 /* EMERGENCY PURGE BUTTON FOR CORRUPTED NOTES */
 window.purgeCorruptedNote = async function() {
   const user = window.PreachMateFirebase?.getCurrentUser();
@@ -1594,7 +1436,6 @@ window.purgeCorruptedNote = async function() {
 
   let localNotes = JSON.parse(localStorage.getItem("notepal_notes_v2") || "[]");
   
-  // Identify notes with raw markers or corrupted HTML structure
   const corruptNotes = localNotes.filter(n => 
     n.content.includes("read-word-marker") || 
     n.content.includes("class=") || 
@@ -1607,7 +1448,6 @@ window.purgeCorruptedNote = async function() {
     return;
   }
 
-  // Delete from Firebase Cloud
   if (user && db) {
     for (const note of corruptNotes) {
       try {
@@ -1618,7 +1458,6 @@ window.purgeCorruptedNote = async function() {
     }
   }
 
-  // Delete locally and reload app
   const cleanNotes = localNotes.filter(n => !corruptNotes.some(cn => cn.id === n.id));
   localStorage.setItem("notepal_notes_v2", JSON.stringify(cleanNotes));
 
@@ -1627,4 +1466,3 @@ window.purgeCorruptedNote = async function() {
 };
 
 })();
-
