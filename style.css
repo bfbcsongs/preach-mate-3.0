@@ -112,16 +112,63 @@ input,button,select,textarea{font-size:16px}
   .home-content{padding-left:22px;padding-right:22px}
 }
 @media(max-width:360px){
-  .topbar{gap:4px;padding-left:7px;padding-right:7px}
-  .brand{font-size:18px}
-  .notes-grid{gap:7px}
-  .note-card{padding:10px;height:205px;min-height:205px}
-  .note-card-title{font-size:14px}
-  .note-card-preview{font-size:12px}
-  .editor-header{gap:1px;padding-left:3px;padding-right:3px}
-  .editor-header .icon-btn{width:35px}
-  .mode-label{font-size:9px}
-  .save-status{min-width:38px;max-width:45px;font-size:8px;padding-left:1px;padding-right:1px}
+  /* UPDATED TOPBAR & COMPACT UI STYLES */
+.topbar {
+  gap: 4px;
+  padding-left: 7px;
+  padding-right: 7px;
+  background: #eff6ff; /* Soft light blue tint */
+  border-bottom: 1px solid #bfdbfe; /* Thin blue outline */
+}
+
+/* Matching navy blue tone for title text and icons */
+.topbar .brand {
+  font-size: 18px;
+  color: #1e3a8a; /* Deep navy blue title */
+}
+
+.topbar .icon-btn {
+  color: #2563eb; /* Clean blue icon buttons */
+}
+
+.notes-grid {
+  gap: 7px;
+}
+
+.note-card {
+  padding: 10px;
+  height: 205px;
+  min-height: 205px;
+}
+
+.note-card-title {
+  font-size: 14px;
+}
+
+.note-card-preview {
+  font-size: 12px;
+}
+
+.editor-header {
+  gap: 1px;
+  padding-left: 3px;
+  padding-right: 3px;
+}
+
+.editor-header .icon-btn {
+  width: 35px;
+}
+
+.mode-label {
+  font-size: 9px;
+}
+
+.save-status {
+  min-width: 38px;
+  max-width: 45px;
+  font-size: 8px;
+  padding-left: 1px;
+  padding-right: 1px;
 }
 /* COMPACT DRAWER ACCOUNT BAR (LOCKED SIZE) */
 .drawer-account-bar {
