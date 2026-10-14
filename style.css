@@ -187,4 +187,36 @@ input,button,select,textarea{font-size:16px}
   border-color: #fca5a5 !important;
   background: #fef2f2 !important;
 }
+.category-tab,
+.drawer-category {
+  touch-action: pan-y; /* Allows normal vertical scrolling until long-press activates */
+}
+
+/* CATEGORY SCROLLING FIX */
+.category-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow-x: auto !important; /* Ensures smooth horizontal scrolling to Add Category */
+  white-space: nowrap;
+  padding: 10px 12px;
+  background: #fff;
+  scrollbar-width: none;
+  flex-shrink: 0;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x !important; /* Allows horizontal scrolling by default */
+}
+
+.category-tab {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.category-tab.dragging,
+.drawer-category.dragging {
+  opacity: 0.5;
+  border: 2px dashed #2563eb;
+}
+
 
