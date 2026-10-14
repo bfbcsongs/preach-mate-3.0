@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="mobile-web-app-capable" content="yes">
+
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="stylesheet" href="./style.css">
+
+<title>Preach Mate</title>
+</head>
+
+<body>
+<div id="app">
+
+  <header class="topbar">
+    <button class="icon-btn" id="btnDrawer" aria-label="Open menu">☰</button>
+
+    <div class="brand-wrap" id="topbarBrand" title="Tap 5 times to change logo">
+      <div>
+        <div class="brand">POTTER'S HOUSE</div>
+        <small style="display:block;font-size:11px;font-weight:500;color:#16a34a;margin-top:4px;line-height:1.1">ILAGAN</small>
+      </div>
+      <img id="topbarLogo" class="brand-logo hidden" alt="Church logo">
+    </div>
+
+    <button class="icon-btn" id="btnFavorites" title="Favorites" aria-label="Favorites">☆</button>
+  </header>
+
+  <div class="searchbar">
+    <input id="searchInput" type="search" placeholder="Search notes..." autocomplete="off" aria-label="Search notes">
+  </div>
+
+  <nav class="category-row" id="categoryTabs" aria-label="Categories"></nav>
+
+  <main class="home-content">
+    <div class="section-heading" id="notesCount">Your notes</div>
+    <div class="notes-grid" id="notesGrid"></div>
+
+    <div class="empty-state hidden" id="emptyState">
+      <div style="font-size:38px;margin-bottom:8px">📝</div>
+      <strong>No notes found</strong>
+      <div>Create a note using the + button.</div>
+    </div>
+  </main>
+
+  <button class="fab" id="btnNewNote" aria-label="Create new note">+</button>
+</div>
+
+<div class="drawer-backdrop hidden" id="drawerBackdrop">
+  <aside class="drawer">
+
+    <div class="drawer-brand-row" id="drawerBrand" title="Tap 5 times to change logo">
+      <div class="drawer-title">
+        POTTER'S HOUSE
+        <small style="display:block;font-size:12px;font-weight:500;color:#16a34a;margin-top:4px">ILAGAN.</small>
+      </div>
+      <img id="drawerLogo" class="brand-logo hidden" alt="Church logo">
+    </div>
+
+    <button class="drawer-item" id="drawerHome">⌂ &nbsp; All Notes</button>
+    <button class="drawer-item" id="drawerFavorites">☆ &nbsp; Favorites</button>
+    <button class="drawer-item" id="drawerNewCategory">⊞ &nbsp; Add Category</button>
+    <button class="drawer-item" id="drawerNewNote">＋ &nbsp; New Note</button>
+    <button class="drawer-item install-app" id="drawerInstall">⬇ &nbsp; Install Preach Mate</button>
+
+    <div class="drawer-section-title">Your Categories</div>
+    <div class="drawer-categories" id="drawerCategories"></div>
+
+    <button class="drawer-item" id="drawerExport">↗ &nbsp; Backup Notes</button>
+    <button class="drawer-item" id="drawerRestore">↙ &nbsp; Restore Backup</button>
+
+    <div class="drawer-footer">Notes are saved on this device.</div>
+  </aside>
+</div>
+
+<section class="editor-screen hidden" id="editorScreen">
+
+  <header class="editor-header">
+    <button class="icon-btn" id="btnBack" title="Back" aria-label="Back">‹</button>
+
+    <input class="editor-title" id="noteTitle" placeholder="Note title" maxlength="180" aria-label="Note title">
+
+    <span class="mode-label" id="modeLabel">READ</span>
+    <span class="save-status saved" id="saveStatus" role="status" aria-live="polite">✓ Saved</span>
+
+    <button class="icon-btn" id="btnCopy" title="Copy note" aria-label="Copy note">▣</button>
+    <button class="icon-btn" id="btnMenu" title="More options" aria-label="More options">⋮</button>
+  </header>
+
+  <div class="note-body" id="noteBody" contenteditable="false" spellcheck="true"></div>
+
+  <div class="editor-menu hidden" id="editorMenu">
+    <button class="menu-item" id="menuMode">Edit Mode</button>
+    <button class="menu-item" id="menuMove">↪ Move to Category</button>
+    <button class="menu-item" id="menuPin">📌 Pin to Top</button>
+    <button class="menu-item" id="menuFavorite">☆ Favorite</button>
+    <button class="menu-item danger" id="menuDelete">Delete Note</button>
+  </div>
+
+</section>
+
+<div class="editor-toolbar hidden" id="editorToolbar">
+  <button class="fmt-btn" id="btnUndo" title="Undo" aria-label="Undo">↶</button>
+  <button class="fmt-btn" id="btnRedo" title="Redo" aria-label="Redo">↷</button>
+  <button class="fmt-btn" id="btnBold" title="Bold"><b>B</b></button>
+  <button class="fmt-btn" id="btnItalic" title="Italic"><i>I</i></button>
+  <button class="fmt-btn" id="btnUnderline" title="Underline"><u>U</u></button>
+  <button class="fmt-btn" id="btnHighlight" title="Choose highlight color">A</button>
+  <button class="fmt-btn" id="btnTextColor" title="Choose font color">◉</button>
+  <button class="fmt-btn" id="btnFontMinus" title="Decrease size">−</button>
+  <button class="fmt-btn" id="btnFontPlus" title="Increase size">+</button>
+</div>
+
+<div class="color-palette hidden" id="colorPalette">
+  <div class="palette-heading">
+    <span id="paletteTitle">Choose color</span>
+    <button class="palette-close" id="paletteClose" aria-label="Close color palette">×</button>
+  </div>
+  <div class="palette-colors" id="paletteColors"></div>
+</div>
+
+<div class="dialog-backdrop hidden" id="dialogBackdrop">
+  <div class="dialog" role="dialog" aria-modal="true">
+    <h3 id="dialogTitle">Add Category</h3>
+
+    <div id="dialogContent"></div>
+
+    <div class="dialog-actions">
+      <button class="btn" id="dialogCancel">Cancel</button>
+      <button class="btn primary" id="dialogConfirm">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
+
+<input type="file" id="logoFileInput" accept="image/*" class="hidden">
+<input type="file" id="restoreFileInput" accept=".json,application/json" class="hidden">
+
+<!-- Firebase SDK: load each library only once -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js" defer></script>
+
+<!-- Firebase Authentication: load only once -->
+<script src="./firebase-auth.js" defer></script>
+
+<!-- Main Preach Mate application -->
+<script src="./app.js" defer></script>
+
+</body>
+</html>
