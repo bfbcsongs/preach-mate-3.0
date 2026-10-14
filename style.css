@@ -702,10 +702,11 @@ textarea {
   background: #fee2e2;
 }
 
-/* NOTE BODY WITH KEYBOARD TAIL CLEARANCE */
+/* NOTE BODY WITH KEYBOARD TAIL CLEARANCE & FIXED HEADER OFFSET */
 .note-body {
   flex: 1;
   min-height: 0;
+  margin-top: 54px !important; /* Prevents content from sliding under the fixed top bar */
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
