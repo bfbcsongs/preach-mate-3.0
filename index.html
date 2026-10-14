@@ -76,7 +76,7 @@
     <button class="drawer-item" id="drawerExport">↗ &nbsp; Backup Notes</button>
     <button class="drawer-item" id="drawerRestore">↙ &nbsp; Restore Backup</button>
 
-    <div class="drawer-footer">Notes are saved on this device.</div>
+    <div class="drawer-footer">Notes are saved on this device and synced to your account when cloud sync is available.</div>
   </aside>
 </div>
 
@@ -144,13 +144,16 @@
 <input type="file" id="logoFileInput" accept="image/*" class="hidden">
 <input type="file" id="restoreFileInput" accept=".json,application/json" class="hidden">
 
-<!-- Firebase SDK: load each library only once -->
+<!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js" defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js" defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js" defer></script>
 
-<!-- Firebase Authentication: load only once -->
+<!-- Firebase Authentication -->
 <script src="./firebase-auth.js" defer></script>
+
+<!-- Firebase Cloud Sync: must load before app.js -->
+<script src="./cloud-sync.js" defer></script>
 
 <!-- Main Preach Mate application -->
 <script src="./app.js" defer></script>
