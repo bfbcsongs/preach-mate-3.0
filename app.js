@@ -1169,7 +1169,27 @@ function schedulePasteTailScroll(){
     requestAnimationFrame(()=>requestAnimationFrame(positionPastedTail));
   },0);
 }
-noteBody.addEventListener("paste",schedulePasteTailScroll);
+/* PASTE SANITIZER TO PREVENT BROKEN HTML */
+noteBody.addEventListener("paste", (e) => {
+  e.preventDefault();
+  
+  // Extract clean plain text from clipboard
+  const plainText = (e.clipboardData || window.clipboardData).getData("text/plain");
+  
+  // Safely insert plain text into contenteditable
+  if (document.queryCommandSupported("insertText")) {
+    document.execCommand("insertText", false, plainText);
+  } else {
+    const selection = window.getSelection();
+    if (!selection.rangeCount) return;
+    selection.deleteFromDocument();
+    selection.getRangeAt(0).insertNode(document.createTextNode(plainText));
+  }
+  
+  // Re-trigger auto-scroll adjustments
+  schedulePasteTailScroll();
+});
+
 noteBody.addEventListener("input",scheduleTypingScroll);
 noteBody.addEventListener("keyup",scheduleTypingScroll);
 noteBody.addEventListener("click",scheduleTypingScroll);
@@ -1392,14 +1412,10 @@ window.addEventListener("beforeunload",()=>{
 
 /* CORRECTED STARTUP WITH INDEXEDDB RECOVERY */
 async function startApp(){
-  // Ask the browser to reduce automatic storage eviction where supported.
   requestPersistentStorage();
 
-  // Read the existing IndexedDB backup BEFORE saving current/default data.
   const backup=await readDurableBackup();
 
-  // Recover notes only if LocalStorage notes were absent or invalid.
-  // A valid empty array means the user intentionally has no notes.
   if(!notesWereStored&&backup&&Array.isArray(backup.notes)){
     notes=backup.notes.filter(n=>n&&typeof n==="object");
     notes.forEach(n=>{
@@ -1412,17 +1428,14 @@ async function startApp(){
     showToast("Notes recovered from device backup.");
   }
 
-  // Recover categories only when no valid categories were saved locally.
   if(!categoriesWereStored&&backup&&Array.isArray(backup.categories)&&backup.categories.length){
     categories=["All Notes",...backup.categories.filter(c=>typeof c==="string"&&c!=="All Notes")];
   }
 
-  // Restore the logo from IndexedDB if the logo key is missing.
   if(!safeStorageGet(LOGO_KEY)&&backup&&typeof backup.logo==="string"&&backup.logo.startsWith("data:image/")){
     safeStorageSet(LOGO_KEY,backup.logo);
   }
 
-  // Normalize categories and ensure every note has a valid category.
   categories=categories.filter(c=>typeof c==="string"&&c.trim()).map(c=>c.trim());
   categories=["All Notes",...categories.filter(c=>c!=="All Notes")];
   categories=[...new Set(categories)];
@@ -1436,7 +1449,6 @@ async function startApp(){
     if(typeof n.pinned!=="boolean")n.pinned=false;
   });
 
-  // Restore first, then render. Persist recovered data back to both stores.
   try{
     localStorage.setItem(STORAGE_KEY,JSON.stringify(notes));
     localStorage.setItem(CATEGORIES_KEY,JSON.stringify(categories));
@@ -1447,7 +1459,6 @@ async function startApp(){
   applySavedLogo();
   updateInstallButton();
 
-  // Ensure the latest state is written to IndexedDB.
   await flushDurableBackup();
 }
 const appStartupPromise = startApp().catch(error => {
@@ -1500,11 +1511,12 @@ window.PreachMateApp = {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
       localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
 
+      // --- CRITICAL FIX FOR LOGO RESTORATION ---
       if (typeof data.logo === "string") {
         if (data.logo.startsWith("data:image/")) {
-          localStorage.setItem(LOGO_KEY, data.logo);
+          safeStorageSet(LOGO_KEY, data.logo);
         } else if (data.logo === "") {
-          localStorage.removeItem(LOGO_KEY);
+          try { localStorage.removeItem(LOGO_KEY); } catch(e){}
         }
       }
 
@@ -1541,4 +1553,78 @@ appStartupPromise
     console.error("Preach Mate initialization failed:", error);
   });
 
+  /* EMERGENCY PURGE BUTTON FOR CORRUPTED NOTES */
+window.purgeCorruptedNote = async function() {
+  const user = window.PreachMateFirebase?.getCurrentUser();
+  const db = window.PreachMateFirebase?.getFirestore();
+
+  // 1. Clean local notes
+  let localNotes = JSON.parse(localStorage.getItem("notepal_notes_v2") || "[]");
+  
+  // Identify corrupted notes (contains HTML attributes or unparsed tags)
+  const corruptNotes = localNotes.filter(n => n.content.includes("read-word-marker") || n.content.includes("class=") || n.title === "Untitled note");
+  
+  if (corruptNotes.length === 0) {
+    alert("No corrupted notes found!");
+    return;
+  }
+
+  // 2. Delete corrupted notes from Firebase Cloud
+  if (user && db) {
+    for (const note of corruptNotes) {
+      try {
+        await db.collection("users").doc(user.uid).collection("notes").doc(note.id).delete();
+      } catch (e) {
+        console.error("Failed to delete note from cloud:", e);
+      }
+    }
+  }
+
+  // 3. Save clean list back to LocalStorage
+  const cleanNotes = localNotes.filter(n => !corruptNotes.some(cn => cn.id === n.id));
+  localStorage.setItem("notepal_notes_v2", JSON.stringify(cleanNotes));
+
+  alert(`Successfully purged ${corruptNotes.length} corrupted note(s)! Reloading...`);
+  location.reload();
+};
+/* EMERGENCY PURGE BUTTON FOR CORRUPTED NOTES */
+window.purgeCorruptedNote = async function() {
+  const user = window.PreachMateFirebase?.getCurrentUser();
+  const db = window.PreachMateFirebase?.getFirestore();
+
+  let localNotes = JSON.parse(localStorage.getItem("notepal_notes_v2") || "[]");
+  
+  // Identify notes with raw markers or corrupted HTML structure
+  const corruptNotes = localNotes.filter(n => 
+    n.content.includes("read-word-marker") || 
+    n.content.includes("class=") || 
+    n.title === "" || 
+    n.title === "Untitled note"
+  );
+  
+  if (corruptNotes.length === 0) {
+    alert("No corrupted notes found!");
+    return;
+  }
+
+  // Delete from Firebase Cloud
+  if (user && db) {
+    for (const note of corruptNotes) {
+      try {
+        await db.collection("users").doc(user.uid).collection("notes").doc(note.id).delete();
+      } catch (e) {
+        console.error("Cloud deletion failed:", e);
+      }
+    }
+  }
+
+  // Delete locally and reload app
+  const cleanNotes = localNotes.filter(n => !corruptNotes.some(cn => cn.id === n.id));
+  localStorage.setItem("notepal_notes_v2", JSON.stringify(cleanNotes));
+
+  alert(`Successfully purged ${corruptNotes.length} corrupted note(s)! Reloading...`);
+  location.reload();
+};
+
 })();
+
