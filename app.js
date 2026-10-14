@@ -5,7 +5,7 @@ const $ = id => document.getElementById(id);
 const STORAGE_KEY = "notepal_notes_v2";
 const CATEGORIES_KEY = "notepal_categories_v2";
 const LOGO_KEY = "preach_mate_logo_v1";
-const MAX_LOGO_BYTES = 21 * 1024;
+const MAX_LOGO_BYTES = 50 * 1024;
 const BACKUP_DB_NAME = "preach_mate_durable_storage_v1";
 const BACKUP_STORE_NAME = "app_backups";
 const BACKUP_RECORD_KEY = "latest";
@@ -1450,12 +1450,9 @@ async function startApp(){
   // Ensure the latest state is written to IndexedDB.
   await flushDurableBackup();
 }
-startApp().catch(error=>{
-  console.error("Preach Mate startup failed:",error);
-  renderCategories();
-  renderNotes();
-  applySavedLogo();
-  updateInstallButton();
+const appStartupPromise = startApp().catch(error => {
+  console.error("Preach Mate startup error:", error);
+  throw error;
 });
 
 /* SERVICE WORKER REGISTRATION */
@@ -1472,4 +1469,76 @@ if("serviceWorker" in navigator){
 }
 
 /* END OF PREACH MATE APP */
+/* CLOUD SYNC BRIDGE */
+window.PreachMateApp = {
+  isReady: false,
+
+  getCloudData() {
+    return {
+      notes: JSON.parse(JSON.stringify(notes)),
+      categories: JSON.parse(JSON.stringify(categories)),
+      logo: safeStorageGet(LOGO_KEY) || ""
+    };
+  },
+
+  applyCloudData(data) {
+    if (
+      !data ||
+      !Array.isArray(data.notes) ||
+      !Array.isArray(data.categories)
+    ) {
+      throw new Error("Invalid cloud backup.");
+    }
+
+    const previousNotes = notes;
+    const previousCategories = categories;
+
+    try {
+      notes = data.notes;
+      categories = data.categories;
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+      localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
+
+      if (typeof data.logo === "string") {
+        if (data.logo.startsWith("data:image/")) {
+          localStorage.setItem(LOGO_KEY, data.logo);
+        } else if (data.logo === "") {
+          localStorage.removeItem(LOGO_KEY);
+        }
+      }
+
+      applySavedLogo();
+      renderCategories();
+      renderNotes();
+      flushDurableBackup();
+
+      return true;
+    } catch (error) {
+      notes = previousNotes;
+      categories = previousCategories;
+      throw new Error(
+        "Could not restore cloud data locally: " +
+        (error?.message || "Unknown error")
+      );
+    }
+  }
+};
+
+/* SIGNAL CLOUD SYNC AFTER APP STARTUP */
+appStartupPromise
+  .then(() => {
+    window.PreachMateApp.isReady = true;
+
+    window.dispatchEvent(
+      new Event("preachmate:app-ready")
+    );
+
+    console.log("Preach Mate: app ready for cloud sync.");
+  })
+  .catch(error => {
+    window.PreachMateApp.isReady = false;
+    console.error("Preach Mate initialization failed:", error);
+  });
+
 })();
