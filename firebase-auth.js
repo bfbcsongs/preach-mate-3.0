@@ -542,26 +542,30 @@
   }
 
   function ensureAccountPanel() {
-    let panel = document.getElementById(
-      "pm-account-panel"
-    );
+  let panel = document.getElementById(
+    "pm-account-panel"
+  );
 
-    if (panel) return panel;
+  if (panel) return panel;
 
-    const drawer = findDrawer();
+  const drawer = findDrawer();
 
-    if (!drawer) return null;
+  if (!drawer) return null;
 
-    panel = document.createElement("section");
-    panel.id = "pm-account-panel";
+  panel = document.createElement("section");
+  panel.id = "pm-account-panel";
 
-    drawer.insertBefore(
-      panel,
-      drawer.firstChild
-    );
+  const footer = drawer.querySelector(".drawer-footer");
 
-    return panel;
+  if (footer) {
+    drawer.insertBefore(panel, footer);
+  } else {
+    drawer.appendChild(panel);
   }
+
+  return panel;
+}
+
 
   function renderAccountPanel() {
     const panel = ensureAccountPanel();
