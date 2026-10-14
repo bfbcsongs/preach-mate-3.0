@@ -402,7 +402,6 @@ function attachCategoryDrag(button, surface) {
     if (e.button !== 0 && e.pointerType === "mouse") return;
     if (button.dataset.category === "All Notes") return;
 
-    // In the side drawer, only enable dragging when explicitly holding the handle (⠿)
     if (!isTabs && !e.target.closest(".cat-drag-handle")) return;
 
     dragInfo = {
@@ -424,7 +423,6 @@ function attachCategoryDrag(button, surface) {
     const dy = e.clientY - dragInfo.startY;
     const distance = axis === "x" ? Math.abs(dx) : Math.abs(dy);
 
-    // Require intentional drag distance before activating drag mode
     if (!dragInfo.moved) {
       if (distance < 12) return;
       dragInfo.moved = true;
@@ -477,7 +475,6 @@ function attachCategoryDrag(button, surface) {
   button.addEventListener("pointerup", finishDrag);
   button.addEventListener("pointercancel", finishDrag);
 }
-
 
 /* NOTES LIST */
 function renderNotes(){
@@ -601,6 +598,10 @@ function setMode(edit){
   noteBody.contentEditable=isEditMode?"true":"false";
   $("modeLabel").textContent=isEditMode?"EDIT":"READ";
   $("menuMode").textContent=isEditMode?"Read Mode":"Edit Mode";
+  
+  // Auto-hide the 3-dot dropdown menu modal when switching modes
+  menu.classList.add("hidden");
+
   toolbar.classList.toggle("hidden",!isEditMode);
   if(isEditMode){
     updateToolbarPosition();
