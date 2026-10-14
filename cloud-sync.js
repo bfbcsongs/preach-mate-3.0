@@ -183,20 +183,6 @@
     };
   }
 
-  function saveLogoLocally(logo) {
-    try {
-      if (typeof logo === "string" && logo.startsWith("data:image/")) {
-        localStorage.setItem(LOGO_KEY, logo);
-      } else if (logo === "") {
-        localStorage.removeItem(LOGO_KEY);
-      }
-
-      return true;
-    } catch (error) {
-      return false;
-    }
-  }
-
   async function restoreCloud(uid, cloud) {
     if (getUser()?.uid !== uid) return;
 
@@ -209,10 +195,6 @@
 
     const notes = normalizeNotes(cloud.notes, categories);
 
-    /*
-     * Restore through app.js so its in-memory data and UI
-     * are updated without reloading the page.
-     */
     const app = window.PreachMateApp;
 
     if (!app || typeof app.applyCloudData !== "function") {
@@ -221,9 +203,10 @@
       );
     }
 
-    const logo = typeof settings.logo === "string"
-      ? settings.logo
-      : undefined;
+    // Safely extract Base64 logo string or empty fallback
+    const logo = typeof settings.logo === "string" && settings.logo.startsWith("data:image/")
+      ? settings.logo 
+      : "";
 
     app.applyCloudData({
       notes,
@@ -231,11 +214,25 @@
       logo
     });
 
+    // Force DOM elements to render the restored logo after layout settles
+    requestAnimationFrame(() => {
+      try {
+        const savedLogo = localStorage.getItem(LOGO_KEY);
+        ["topbarLogo", "drawerLogo"].forEach(id => {
+          const img = document.getElementById(id);
+          if (img && savedLogo) {
+            img.src = savedLogo;
+            img.classList.remove("hidden");
+          }
+        });
+      } catch (e) {}
+    });
+
     lastSnapshot = makeSnapshot();
     cloudReady = true;
     lastErrorMessage = "";
 
-    console.log("Preach Mate: cloud backup restored.");
+    console.log("Preach Mate: cloud backup restored with logo.");
   }
 
   async function uploadLocal(uid) {
@@ -300,9 +297,14 @@
       throw new Error("Account changed during sync.");
     }
 
+    // Preserve valid Base64 image payload during sync
+    const logoToUpload = typeof data.logo === "string" && data.logo.startsWith("data:image/")
+      ? data.logo
+      : "";
+
     await settingsRef.set({
       categories,
-      logo: data.logo || "",
+      logo: logoToUpload,
       initialized: true,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
@@ -368,10 +370,6 @@
         return;
       }
 
-      /*
-       * First-time backup only. Never upload local defaults
-       * over an already initialized cloud backup.
-       */
       await uploadLocal(uid);
 
       if (generation !== authGeneration || getUser()?.uid !== uid) return;
@@ -407,7 +405,7 @@
     try {
       await uploadLocal(uid);
 
-      if (currentUid === uid && getUser()?.uid === uid) {
+      if (currentUid === uid && getUser()?.uid !== uid) {
         lastSnapshot = makeSnapshot();
       }
     } catch (error) {
