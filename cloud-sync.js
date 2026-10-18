@@ -183,17 +183,66 @@
     };
   }
 
+  /* ==========================================
+     SMART CLOUD MERGE LOGIC (ZERO DATA LOSS)
+     ========================================== */
+  async function mergeCloudAndLocalData(cloudNotes, cloudCategories, localData) {
+    const mergedNotesMap = new Map();
+
+    // 1. Isalans ang kasalukuyang local notes (mga ginawa habang offline/logged out)
+    if (Array.isArray(localData.notes)) {
+      localData.notes.forEach(note => {
+        if (note && note.id) {
+          mergedNotesMap.set(String(note.id), note);
+        }
+      });
+    }
+
+    // 2. I-merge ang cloud notes batay sa pinakabagong updated timestamp
+    if (Array.isArray(cloudNotes)) {
+      cloudNotes.forEach(cloudNote => {
+        if (!cloudNote || !cloudNote.id) return;
+        const id = String(cloudNote.id);
+        const existingLocal = mergedNotesMap.get(id);
+
+        if (!existingLocal) {
+          mergedNotesMap.set(id, cloudNote);
+        } else {
+          const localTime = Number(existingLocal.updated) || 0;
+          const cloudTime = Number(cloudNote.updated) || 0;
+
+          // Kung mas bago ang nasa cloud, i-update; kung hindi, panatilihin ang local edit
+          if (cloudTime > localTime) {
+            mergedNotesMap.set(id, cloudNote);
+          }
+        }
+      });
+    }
+
+    // 3. Pagsamahin ang categories nang walang natatapon
+    const mergedCategories = normalizeCategories(
+      [...(localData.categories || []), ...(cloudCategories || [])],
+      Array.from(mergedNotesMap.values())
+    );
+
+    return {
+      notes: normalizeNotes(Array.from(mergedNotesMap.values()), mergedCategories),
+      categories: mergedCategories
+    };
+  }
+
   async function restoreCloud(uid, cloud) {
     if (getUser()?.uid !== uid) return;
 
     const settings = cloud.settings || {};
+    const localData = JSON.parse(makeSnapshot());
 
-    const categories = normalizeCategories(
+    // Isagawa ang Smart Merge sa pagitan ng Cloud at Local data
+    const merged = await mergeCloudAndLocalData(
+      cloud.notes,
       settings.categories,
-      cloud.notes
+      localData
     );
-
-    const notes = normalizeNotes(cloud.notes, categories);
 
     const app = window.PreachMateApp;
 
@@ -203,21 +252,19 @@
       );
     }
 
-    // Safely extract Base64 logo string or empty fallback
     const logo = typeof settings.logo === "string" && settings.logo.startsWith("data:image/")
       ? settings.logo 
-      : "";
+      : readLogo();
 
     app.applyCloudData({
-      notes,
-      categories,
+      notes: merged.notes,
+      categories: merged.categories,
       logo
     });
 
-    // Force DOM elements to render the restored logo after layout settles
     requestAnimationFrame(() => {
       try {
-        const savedLogo = localStorage.getItem(LOGO_KEY);
+        const savedLogo = localStorage.getItem(LOGO_KEY) || logo;
         ["topbarLogo", "drawerLogo"].forEach(id => {
           const img = document.getElementById(id);
           if (img && savedLogo) {
@@ -232,7 +279,10 @@
     cloudReady = true;
     lastErrorMessage = "";
 
-    console.log("Preach Mate: cloud backup restored with logo.");
+    // Agad ding i-sync pabalik sa cloud ang na-merge na kumpletong data
+    await uploadLocal(uid);
+
+    console.log("Preach Mate: cloud data successfully merged and restored.");
   }
 
   async function uploadLocal(uid) {
@@ -297,10 +347,9 @@
       throw new Error("Account changed during sync.");
     }
 
-    // Preserve valid Base64 image payload during sync
     const logoToUpload = typeof data.logo === "string" && data.logo.startsWith("data:image/")
       ? data.logo
-      : "";
+      : readLogo();
 
     await settingsRef.set({
       categories,
@@ -367,6 +416,8 @@
 
       if (cloud.hasCloudData) {
         await restoreCloud(uid, cloud);
+        cloudReady = true;
+        lastSnapshot = makeSnapshot();
         return;
       }
 
