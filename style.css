@@ -64,16 +64,15 @@ textarea {
   gap: 10px;
   padding: 8px 12px;
   padding-top: max(8px, env(safe-area-inset-top));
-  background: #f0fdf4; /* Soft green tint base */
+  background: #f0fdf4;
   display: flex;
   align-items: center;
   min-height: 58px;
   flex-shrink: 0;
   position: relative;
-  border-bottom: 1.5px solid #bbf7d0; /* Static light green border */
+  border-bottom: 1.5px solid #bbf7d0;
 }
 
-/* Pseudo-element for smooth green GPU glow layer */
 .topbar::after {
   content: "";
   position: absolute;
@@ -81,7 +80,7 @@ textarea {
   left: 0;
   right: 0;
   height: 1.5px;
-  background: #16a34a; /* Emerald green glow */
+  background: #16a34a;
   box-shadow: 0 4px 14px rgba(22, 163, 74, 0.5);
   pointer-events: none;
   animation: greenLightGlow 3s infinite alternate ease-in-out;
@@ -92,7 +91,7 @@ textarea {
   font-size: 20px;
   font-weight: 800;
   flex: 1;
-  color: #14532d; /* Deep forest green */
+  color: #14532d;
 }
 
 .brand-wrap {
@@ -153,7 +152,7 @@ textarea {
   align-items: center;
   justify-content: center;
   font-size: 22px;
-  color: #15803d; /* Clean green icons */
+  color: #15803d;
   flex-shrink: 0;
 }
 
@@ -526,7 +525,6 @@ textarea {
   padding: 12px 6px;
 }
 
-/* COMPACT DRAWER ACCOUNT BAR (GREEN LIVE LIGHTS) */
 .drawer-account-bar {
   margin-top: auto !important;
   padding: 6px 10px !important;
@@ -545,7 +543,6 @@ textarea {
   position: relative !important;
 }
 
-/* Pseudo-element for account bar top glow */
 .drawer-account-bar::before {
   content: "";
   position: absolute;
@@ -618,7 +615,7 @@ textarea {
   padding-top: env(safe-area-inset-top);
   padding-bottom: 0;
   min-height: 0;
-  height: 100dvh; /* Enables dynamic viewport handling when software keyboard opens */
+  height: 100dvh;
 }
 
 .editor-header {
@@ -630,7 +627,9 @@ textarea {
   min-height: 54px;
   flex-shrink: 0;
   background: #f0fdf4;
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 40;
 }
 
 .editor-header::after {
@@ -702,18 +701,17 @@ textarea {
   background: #fee2e2;
 }
 
-/* NOTE BODY WITH KEYBOARD TAIL CLEARANCE & FIXED HEADER OFFSET */
 .note-body {
   flex: 1;
   min-height: 0;
-  margin-top: 54px !important; /* Prevents content from sliding under the fixed top bar */
+  margin-top: 0 !important;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
   outline: 0;
   border: 0;
-  padding: 18px 20px max(50vh, 320px); /* Dynamically offsets note tail above soft keyboard */
+  padding: 18px 20px max(50vh, 320px);
   font-size: 17px;
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -792,25 +790,34 @@ textarea {
   display: none !important;
 }
 
-.editor-toolbar {
+/* UPDATED HORIZONTAL SCROLLABLE TOOLBAR */
+#editorToolbar {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
-  min-height: 49px;
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
   background: #fff;
   border-top: 1px solid var(--border);
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  gap: 2px;
-  padding: 5px 5px calc(5px + env(safe-area-inset-bottom));
   z-index: 45;
   box-shadow: 0 -3px 12px #0000000a;
+  scrollbar-width: none;
 }
 
-.fmt-btn {
-  min-width: 30px;
+#editorToolbar::-webkit-scrollbar {
+  display: none;
+}
+
+#editorToolbar .fmt-btn {
+  flex-shrink: 0;
+  min-width: 38px;
   height: 38px;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -820,9 +827,8 @@ textarea {
   align-items: center;
   justify-content: center;
   font-size: 16px;
-  padding: 5px 4px;
-  flex: 1;
-  max-width: 55px;
+  padding: 5px 8px;
+  max-width: none;
 }
 
 .fmt-btn:active,
@@ -1028,17 +1034,3 @@ textarea {
     padding-right: 22px;
   }
 }
-.editor-header {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 7px 7px;
-  border-bottom: 1.5px solid #bbf7d0;
-  min-height: 54px;
-  flex-shrink: 0;
-  background: #f0fdf4;
-  position: sticky; /* Keeps it locked at the top */
-  top: 0;
-  z-index: 40;
-}
-
